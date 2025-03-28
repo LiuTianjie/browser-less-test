@@ -524,12 +524,12 @@ app.ws('/', async (ws, req) => {
 const PORT = 9000;
 server.listen(PORT, async () => {
   console.log(`服务器运行在 http://localhost:${PORT}`);
-  console.log(`客户端页面访问地址: http://localhost:${PORT}/client.html`);
+  console.log(`客户端页面访问地址: http://localhost:${PORT}/index.html`);
 
   // 确保client.html文件存在
-  const clientPath = path.join(__dirname, 'client.html');
+  const clientPath = path.join(__dirname, 'index.html');
   if (!fs.existsSync(clientPath)) {
-    console.error('错误: client.html 文件不存在!');
+    console.error('错误: index.html 文件不存在!');
     process.exit(1);
   }
 
