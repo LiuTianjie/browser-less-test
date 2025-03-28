@@ -521,7 +521,7 @@ app.ws('/', async (ws, req) => {
 });
 
 // 启动服务器
-const PORT = 8080;
+const PORT = 9000;
 server.listen(PORT, async () => {
   console.log(`服务器运行在 http://localhost:${PORT}`);
   console.log(`客户端页面访问地址: http://localhost:${PORT}/client.html`);
