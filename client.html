@@ -299,9 +299,7 @@
       let ws;
 
       function connectWebSocket() {
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}`;
-        log(`正在连接WebSocket: ${wsUrl}`);
+        let wsUrl = "ws://1300423047-b8lweqipgz.ap-guangzhou.tencentscf.com"
 
         ws = new WebSocket(wsUrl);
         ws.binaryType = 'arraybuffer'; // 设置为接收二进制数据
