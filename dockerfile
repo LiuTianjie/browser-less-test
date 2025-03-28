@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.41.2-jammy
+FROM mcr.microsoft.com/playwright:v1.51.1-jammy
 
 # 设置工作目录
 WORKDIR /app
