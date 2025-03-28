@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>远程浏览器显示</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    #remoteDisplay {
+      width: 100%;
+      max-width: 1200px;
+      height: auto;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      background-color: #000;
+    }
+
+    .status {
+      margin: 20px 0;
+      padding: 10px;
+      border-radius: 4px;
+      background-color: #e0e0e0;
+    }
+
+    .connected {
+      background-color: #d4edda;
+      color: #155724;
+    }
+
+    .disconnected {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+
+    /* 添加性能设置按钮样式 */
+    .controls {
+      margin: 10px 0;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    button {
+      padding: 8px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+
+    select {
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    /* 导航栏样式 */
+    .nav-bar {
+      display: flex;
+      width: 100%;
+      background-color: #333;
+      color: white;
+      border-radius: 8px 8px 0 0;
+      overflow: hidden;
+      margin-bottom: 2px;
+    }
+
+    .nav-btn {
+      background-color: #333;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    .nav-btn:hover,
+    .nav-btn:focus {
+      background-color: #555;
+    }
+
+    .nav-btn:disabled {
+      background-color: #333;
+      color: #777;
+      cursor: not-allowed;
+    }
+
+    .url-bar {
+      flex-grow: 1;
+      padding: 10px;
+      border: none;
+      outline: none;
+      background-color: #444;
+      color: white;
+      font-size: 14px;
+    }
+
+    /* 容器调整，使导航栏和画布一体化 */
+    .browser-container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      overflow: hidden;
+      background-color: #000;
+    }
+
+    /* 调整画布样式 */
+    #remoteDisplay {
+      width: 100%;
+      max-width: 1200px;
+      height: auto;
+      border: none;
+      border-radius: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>远程浏览器显示</h1>
+    <div id="statusBox" class="status disconnected">等待连接...</div>
+
+    <!-- 添加性能设置控制 -->
+    <div class="controls">
+      <select id="qualitySelector">
+        <option value="high">高质量</option>
+        <option value="medium" selected>中等质量</option>
+        <option value="low">低质量 (高帧率)</option>
+      </select>
+      <button id="toggleSmooth">启用平滑模式</button>
+    </div>
+
+    <!-- 添加浏览器容器和导航栏 -->
+    <div class="browser-container">
+      <div class="nav-bar">
+        <button id="backBtn" class="nav-btn" title="后退" disabled>←</button>
+        <button id="forwardBtn" class="nav-btn" title="前进" disabled>→</button>
+        <button id="refreshBtn" class="nav-btn" title="刷新">↻</button>
+        <input type="text" id="urlBar" class="url-bar" placeholder="输入网址..." />
+        <button id="goBtn" class="nav-btn" title="前往">Go</button>
+      </div>
+      <canvas id="remoteDisplay"></canvas>
+    </div>
+
+    <div id="debugInfo"
+      style="margin-top: 10px; font-family: monospace; text-align: left; padding: 10px; background-color: #f0f0f0;">
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const canvas = document.getElementById('remoteDisplay');
+      const ctx = canvas.getContext('2d', { alpha: false }); // 禁用alpha通道提高性能
+      const statusBox = document.getElementById('statusBox');
+      const debugInfo = document.getElementById('debugInfo');
+      const qualitySelector = document.getElementById('qualitySelector');
+      const toggleSmoothBtn = document.getElementById('toggleSmooth');
+
+      let lastUpdateTime = 0;
+      let frameCount = 0;
+      let fps = 0;
+      let receivedFrames = 0;
+      let lastFrameTimestamp = 0;
+      let smooth = false;
+      let skipFrames = false; // 新增：在低端设备上可选择跳帧
+      let frameQueue = []; // 用于帧缓冲
+
+      // 图像质量设置
+      let imageQuality = 'medium';
+
+      // 初始化设置
+      canvas.width = 1280;
+      canvas.height = 720;
+
+      // 如果设备是手机或平板，默认设置为低质量
+      if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+        qualitySelector.value = 'low';
+        imageQuality = 'low';
+        skipFrames = true;
+        log('检测到移动设备，已自动设置为低质量模式');
+      }
+
+      // 启用/禁用平滑渲染
+      toggleSmoothBtn.addEventListener('click', () => {
+        smooth = !smooth;
+        if (smooth) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          toggleSmoothBtn.textContent = '禁用平滑模式';
+          log('已启用平滑模式');
+        } else {
+          ctx.imageSmoothingEnabled = false;
+          toggleSmoothBtn.textContent = '启用平滑模式';
+          log('已禁用平滑模式');
+        }
+      });
+
+      // 设置画布渲染质量
+      qualitySelector.addEventListener('change', () => {
+        imageQuality = qualitySelector.value;
+        log(`已切换到${qualitySelector.options[qualitySelector.selectedIndex].text}`);
+
+        // 根据质量调整跳帧
+        skipFrames = (imageQuality === 'low');
+
+        // 清空帧缓冲队列
+        frameQueue = [];
+      });
+
+      // 初始设置
+      ctx.imageSmoothingEnabled = false;
+
+      // 使用requestAnimationFrame进行渲染
+      let animationFrameId = null;
+
+      function drawFrame() {
+        try {
+          // 如果有帧在队列中，取出最新的一帧进行渲染
+          if (frameQueue.length > 0) {
+            // 如果开启了跳帧，并且队列中有多个帧，只保留最新的
+            if (skipFrames && frameQueue.length > 1) {
+              const latestFrame = frameQueue.pop();
+              frameQueue = [latestFrame];
+            }
+
+            const frame = frameQueue.shift();
+
+            // 清除画布并绘制
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            try {
+              ctx.drawImage(frame.img, 0, 0, canvas.width, canvas.height);
+
+              // 计算实际FPS
+              const now = performance.now();
+              frameCount++;
+
+              if (now - lastUpdateTime >= 1000) {
+                fps = Math.round((frameCount * 1000) / (now - lastUpdateTime));
+                frameCount = 0;
+                lastUpdateTime = now;
+
+                // 更新状态栏和FPS显示
+                updateStatus(`已连接 - ${fps} FPS`, true);
+              }
+
+              // 添加时间戳和FPS显示
+              ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+              ctx.fillRect(5, 5, 200, 20);
+              ctx.fillStyle = "white";
+              ctx.font = "12px Arial";
+              const now2 = new Date();
+              ctx.fillText(`${now2.toLocaleTimeString()} - FPS: ${fps} - 队列: ${frameQueue.length}`, 10, 18);
+            } catch (drawError) {
+              log(`绘制图像出错: ${drawError.message}`);
+            }
+          }
+        } catch (error) {
+          log(`动画帧处理错误: ${error.message}`);
+        }
+
+        // 继续动画循环
+        animationFrameId = requestAnimationFrame(drawFrame);
+      }
+
+      // 启动动画循环
+      animationFrameId = requestAnimationFrame(drawFrame);
+
+      // 保存最新的元数据
+      let currentMetadata = null;
+
+      // 初始设置WebSocket为二进制类型
+      let ws;
+
+      function connectWebSocket() {
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}`;
+        log(`正在连接WebSocket: ${wsUrl}`);
+
+        ws = new WebSocket(wsUrl);
+        ws.binaryType = 'arraybuffer'; // 设置为接收二进制数据
+
+        ws.onopen = () => {
+          log('WebSocket已连接');
+          updateStatus('已连接到服务器，等待图像...', true);
+        };
+
+        ws.onclose = () => {
+          log('WebSocket已断开');
+          updateStatus('服务器连接已断开', false);
+        };
+
+        receivedFrames++;
+        if (receivedFrames % 10 === 0 || receivedFrames === 1) {
+          log(`已接收 ${receivedFrames} 帧数据`);
+        }
+
+        // 处理来自服务器的消息 - 二进制版本
+        ws.onmessage = (event) => {
+          try {
+            receivedFrames++;
+
+            // 检查是否是二进制数据还是文本数据
+            if (event.data instanceof ArrayBuffer) {
+              // 二进制数据 - 图像内容
+              if (receivedFrames % 10 === 0) {
+                log(`已接收 ${receivedFrames} 帧数据，当前帧大小: ${event.data.byteLength} 字节`);
+              }
+
+              // 确保我们有元数据
+              if (!currentMetadata) {
+                log('收到图像数据但没有元数据，忽略...');
+                return;
+              }
+
+              // 使用元数据创建Blob
+              const blob = new Blob([event.data], { type: 'image/jpeg' });
+              const timestamp = currentMetadata.timestamp || Date.now();
+
+              // 检查是否应该处理这一帧
+              if (skipFrames && lastFrameTimestamp > 0 &&
+                timestamp - lastFrameTimestamp < 50) {
+                return; // 跳过这一帧
+              }
+
+              lastFrameTimestamp = timestamp;
+
+              // 更新画布尺寸（如果需要）
+              if (canvas.width !== currentMetadata.width || canvas.height !== currentMetadata.height) {
+                log(`调整画布尺寸: ${currentMetadata.width}x${currentMetadata.height}`);
+                canvas.width = currentMetadata.width;
+                canvas.height = currentMetadata.height;
+              }
+
+              // 创建URL对象以加载图像
+              const url = URL.createObjectURL(blob);
+              const img = new Image();
+
+              img.onload = () => {
+                // 图像加载成功，将其添加到帧队列
+                log(`图像加载成功: ${img.width}x${img.height}`);
+                frameQueue.push({ img, timestamp });
+
+                // 限制队列长度
+                if (frameQueue.length > 5) {
+                  frameQueue.shift();
+                }
+
+                // 释放URL对象以避免内存泄漏
+                URL.revokeObjectURL(url);
+              };
+
+              img.onerror = (err) => {
+                log(`图像加载错误: ${err}`);
+                URL.revokeObjectURL(url);
+              };
+
+              img.src = url;
+            } else {
+              // 文本数据 - 元数据
+              const message = JSON.parse(event.data);
+
+              if (message.type === 'metadata') {
+                // 保存元数据用于接下来的图像数据
+                currentMetadata = {
+                  width: message.width,
+                  height: message.height,
+                  timestamp: message.timestamp
+                };
+                log(`收到元数据: 宽=${message.width}, 高=${message.height}`);
+              } else if (message.type === 'ping') {
+                // 心跳响应
+                ws.send(JSON.stringify({ type: 'pong', time: Date.now() }));
+              }
+            }
+          } catch (error) {
+            log(`处理消息时出错: ${error.message}`);
+            console.error('完整错误:', error);
+          }
+        };
+
+        return ws;
+      }
+
+      // 建立WebSocket连接
+      ws = connectWebSocket();
+
+      // 更新状态显示
+      function updateStatus(message, connected = null) {
+        statusBox.textContent = message;
+        if (connected === true) {
+          statusBox.classList.remove('disconnected');
+          statusBox.classList.add('connected');
+        } else if (connected === false) {
+          statusBox.classList.remove('connected');
+          statusBox.classList.add('disconnected');
+        }
+      }
+
+      // 添加自动重连功能
+      function setupReconnection() {
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
+        function tryReconnect() {
+          if (reconnectAttempts < maxReconnectAttempts) {
+            reconnectAttempts++;
+            log(`尝试重新连接 (${reconnectAttempts}/${maxReconnectAttempts})...`);
+            updateStatus(`正在重新连接 (${reconnectAttempts}/${maxReconnectAttempts})...`, false);
+
+            // 重新创建WebSocket连接
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
+          } else {
+            log('达到最大重连次数，请手动刷新页面');
+            updateStatus('连接失败，请刷新页面重试', false);
+          }
+        }
+
+        // 检测连接状态
+        setInterval(() => {
+          if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+            tryReconnect();
+          }
+        }, 5000);
+      }
+
+      // 启用重连机制
+      setupReconnection();
+
+      // 清理函数 - 页面关闭时取消动画
+      window.addEventListener('beforeunload', () => {
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+        }
+      });
+
+      // 调试函数
+      function log(message) {
+        console.log(message);
+        debugInfo.innerHTML += `<div>${new Date().toISOString().substr(11, 8)}: ${message}</div>`;
+        // 限制日志条数
+        if (debugInfo.children.length > 10) {
+          debugInfo.removeChild(debugInfo.children[0]);
+        }
+      }
+
+      // 添加心跳检测
+      setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          log("发送心跳...");
+          try {
+            ws.send(JSON.stringify({ type: 'ping', time: Date.now() }));
+          } catch (e) {
+            log(`发送心跳失败: ${e.message}`);
+          }
+        }
+      }, 10000);
+
+      // 添加调试按钮
+      const debugBtn = document.createElement('button');
+      debugBtn.textContent = '刷新连接';
+      debugBtn.style.marginLeft = '10px';
+      document.querySelector('.controls').appendChild(debugBtn);
+
+      debugBtn.addEventListener('click', () => {
+        log('手动刷新连接...');
+        if (ws.readyState !== WebSocket.OPEN) {
+          window.location.reload();
+        } else {
+          log('连接已经打开，发送测试消息');
+          try {
+            ws.send(JSON.stringify({ type: 'test', time: Date.now() }));
+          } catch (e) {
+            log(`发送测试消息失败: ${e.message}`);
+            window.location.reload();
+          }
+        }
+      });
+
+      // 添加性能监控按钮
+      const statsBtn = document.createElement('button');
+      statsBtn.textContent = '显示性能数据';
+      statsBtn.style.marginLeft = '10px';
+      document.querySelector('.controls').appendChild(statsBtn);
+
+      let showStats = false;
+      let receivedBytes = 0;
+
+      statsBtn.addEventListener('click', () => {
+        showStats = !showStats;
+        statsBtn.textContent = showStats ? '隐藏性能数据' : '显示性能数据';
+        log(`${showStats ? '显示' : '隐藏'}性能数据`);
+      });
+
+      // 添加性能监控仪表板
+      const statsPanelBtn = document.createElement('button');
+      statsPanelBtn.textContent = '性能面板';
+      statsPanelBtn.style.marginLeft = '10px';
+      document.querySelector('.controls').appendChild(statsPanelBtn);
+
+      // 创建性能监控面板
+      const statsPanel = document.createElement('div');
+      statsPanel.style.display = 'none';
+      statsPanel.style.position = 'fixed';
+      statsPanel.style.top = '10px';
+      statsPanel.style.right = '10px';
+      statsPanel.style.backgroundColor = 'rgba(0,0,0,0.7)';
+      statsPanel.style.color = 'white';
+      statsPanel.style.padding = '10px';
+      statsPanel.style.borderRadius = '5px';
+      statsPanel.style.fontFamily = 'monospace';
+      statsPanel.style.fontSize = '12px';
+      statsPanel.style.zIndex = '1000';
+      document.body.appendChild(statsPanel);
+
+      // FPS历史记录
+      const fpsHistory = [];
+      const maxHistory = 60; // 存储最近60秒的FPS数据
+
+      // 更新性能面板
+      function updateStatsPanel() {
+        if (statsPanel.style.display === 'none') return;
+
+        // 计算平均FPS
+        const avgFps = fpsHistory.length > 0
+          ? Math.round(fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length)
+          : 0;
+
+        // 计算帧延迟
+        const frameDelay = frameQueue.length > 0
+          ? Math.round(performance.now() - frameQueue[0].timestamp)
+          : 0;
+
+        statsPanel.innerHTML = `
+          <div>当前FPS: ${fps}</div>
+          <div>平均FPS: ${avgFps}</div>
+          <div>帧队列长度: ${frameQueue.length}</div>
+          <div>帧延迟: ${frameDelay}ms</div>
+          <div>已接收帧数: ${receivedFrames}</div>
+        `;
+      }
+
+      // 定期更新性能数据
+      setInterval(() => {
+        // 保存当前FPS到历史记录
+        fpsHistory.push(fps);
+        if (fpsHistory.length > maxHistory) {
+          fpsHistory.shift();
+        }
+
+        updateStatsPanel();
+      }, 1000);
+
+      // 切换性能面板显示
+      statsPanelBtn.addEventListener('click', () => {
+        if (statsPanel.style.display === 'none') {
+          statsPanel.style.display = 'block';
+          statsPanelBtn.textContent = '隐藏性能面板';
+        } else {
+          statsPanel.style.display = 'none';
+          statsPanelBtn.textContent = '性能面板';
+        }
+      });
+
+      // 鼠标控制相关代码有问题，重新定义
+      let mouseControlEnabled = false;
+      let canvasElement = canvas;
+
+      // 添加鼠标控制开关按钮 (去掉重复定义)
+      const mouseControlBtn = document.createElement('button');
+      mouseControlBtn.textContent = '启用鼠标控制';
+      mouseControlBtn.style.marginLeft = '10px';
+      document.querySelector('.controls').appendChild(mouseControlBtn);
+
+      // 增加鼠标事件处理功能 - 修复后的版本
+      function setupMouseControl() {
+        let isMouseDown = false;
+
+        // 确保引用的是当前的canvas元素
+        canvasElement = document.getElementById('remoteDisplay');
+
+        // 鼠标移动事件
+        canvasElement.addEventListener('mousemove', (e) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            // 获取相对于canvas的坐标
+            const rect = canvasElement.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+
+            // 发送鼠标移动事件到服务器
+            ws.send(JSON.stringify({
+              type: 'mouse',
+              action: 'move',
+              x: x,
+              y: y,
+              button: e.buttons, // 包含按下的鼠标按钮信息
+              timestamp: Date.now()
+            }));
+          }
+        });
+
+        // 鼠标按下事件
+        canvasElement.addEventListener('mousedown', (e) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            isMouseDown = true;
+            const rect = canvasElement.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+
+            ws.send(JSON.stringify({
+              type: 'mouse',
+              action: 'down',
+              x: x,
+              y: y,
+              button: e.button, // 0: 左键, 1: 中键, 2: 右键
+              timestamp: Date.now()
+            }));
+
+            // 防止默认行为和冒泡
+            e.preventDefault();
+          }
+        });
+
+        // 鼠标释放事件
+        canvasElement.addEventListener('mouseup', (e) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            isMouseDown = false;
+            const rect = canvasElement.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+
+            ws.send(JSON.stringify({
+              type: 'mouse',
+              action: 'up',
+              x: x,
+              y: y,
+              button: e.button,
+              timestamp: Date.now()
+            }));
+
+            e.preventDefault();
+          }
+        });
+
+        // 鼠标点击事件
+        canvasElement.addEventListener('click', (e) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            const rect = canvasElement.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+
+            ws.send(JSON.stringify({
+              type: 'mouse',
+              action: 'click',
+              x: x,
+              y: y,
+              button: e.button,
+              timestamp: Date.now()
+            }));
+
+            e.preventDefault();
+          }
+        });
+
+        // 鼠标右键事件
+        canvasElement.addEventListener('contextmenu', (e) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            const rect = canvasElement.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+
+            ws.send(JSON.stringify({
+              type: 'mouse',
+              action: 'contextmenu',
+              x: x,
+              y: y,
+              timestamp: Date.now()
+            }));
+
+            // 阻止浏览器默认右键菜单
+            e.preventDefault();
+          }
+        });
+
+        // 双击事件
+        canvasElement.addEventListener('dblclick', (e) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            const rect = canvasElement.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+
+            ws.send(JSON.stringify({
+              type: 'mouse',
+              action: 'dblclick',
+              x: x,
+              y: y,
+              button: e.button,
+              timestamp: Date.now()
+            }));
+
+            e.preventDefault();
+          }
+        });
+
+        // 滚轮事件
+        canvasElement.addEventListener('wheel', (e) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            const rect = canvasElement.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+
+            ws.send(JSON.stringify({
+              type: 'mouse',
+              action: 'wheel',
+              x: x,
+              y: y,
+              deltaX: e.deltaX,
+              deltaY: e.deltaY,
+              timestamp: Date.now()
+            }));
+
+            // 阻止页面滚动
+            e.preventDefault();
+          }
+        });
+
+        // 防止滚动和选中
+        canvasElement.style.touchAction = 'none';
+        canvasElement.style.userSelect = 'none';
+        canvasElement.style.cursor = 'crosshair';
+
+        log('鼠标控制已启用');
+      }
+
+      // 修复鼠标控制按钮事件监听器
+      mouseControlBtn.addEventListener('click', () => {
+        mouseControlEnabled = !mouseControlEnabled;
+
+        if (mouseControlEnabled) {
+          setupMouseControl();
+          mouseControlBtn.textContent = '禁用鼠标控制';
+          // 同时启用键盘控制
+          setupKeyboardControl();
+        } else {
+          // 禁用鼠标控制 - 正确获取最新的canvas元素
+          canvasElement = document.getElementById('remoteDisplay');
+          canvasElement.replaceWith(canvasElement.cloneNode(true));
+          // 重新获取替换后的元素
+          canvasElement = document.getElementById('remoteDisplay');
+          // 确保绘图上下文重新初始化
+          ctx = canvasElement.getContext('2d', { alpha: false });
+          ctx.imageSmoothingEnabled = smooth;
+          canvasElement.style.cursor = 'default';
+
+          mouseControlBtn.textContent = '启用鼠标控制';
+          log('鼠标控制已禁用 (键盘控制仍然激活，请点击输入框以避免发送键盘事件)');
+        }
+      });
+
+      // 添加键盘事件处理功能 - 彻底重写
+      function setupKeyboardControl() {
+        // 跟踪按下的键
+        const pressedKeys = new Set();
+
+        // 跟踪最近处理的事件时间戳
+        const lastKeyEvents = {};
+
+        // 最小事件间隔 (毫秒)
+        const MIN_EVENT_INTERVAL = 50;
+
+        // 键盘按下事件
+        document.addEventListener('keydown', (e) => {
+          if (ws.readyState !== WebSocket.OPEN || document.activeElement.tagName === 'INPUT') {
+            return;
+          }
+
+          // 如果这个键已经被记录为按下，不要重复发送事件
+          if (pressedKeys.has(e.code)) {
+            // 阻止浏览器默认行为
+            if (['F5', 'F11', 'F12'].includes(e.key) ||
+              (e.ctrlKey && ['r', 's', 'p', 'o', 'n'].includes(e.key.toLowerCase()))) {
+              e.preventDefault();
+            }
+            return;
+          }
+
+          // 检查是否在短时间内处理过此按键
+          const now = Date.now();
+          if (lastKeyEvents[e.code] && now - lastKeyEvents[e.code] < MIN_EVENT_INTERVAL) {
+            e.preventDefault();
+            return;
+          }
+
+          // 记录这个键被按下和处理时间
+          pressedKeys.add(e.code);
+          lastKeyEvents[e.code] = now;
+
+          // 发送键盘按下事件到服务器
+          ws.send(JSON.stringify({
+            type: 'keyboard',
+            action: 'down',
+            key: e.key,
+            code: e.code,
+            altKey: e.altKey,
+            ctrlKey: e.ctrlKey,
+            shiftKey: e.shiftKey,
+            metaKey: e.metaKey,
+            timestamp: now
+          }));
+
+          // 记录非修饰键的按下
+          if (!/^(Alt|Control|Shift|Meta|OS)/.test(e.code)) {
+            log(`键盘按下: ${e.key} (${e.code})`);
+          }
+
+          // 防止浏览器默认行为
+          if (['F5', 'F11', 'F12'].includes(e.key) ||
+            (e.ctrlKey && ['r', 's', 'p', 'o', 'n'].includes(e.key.toLowerCase()))) {
+            e.preventDefault();
+          }
+        }, { passive: false });
+
+        // 键盘释放事件
+        document.addEventListener('keyup', (e) => {
+          if (ws.readyState !== WebSocket.OPEN || document.activeElement.tagName === 'INPUT') {
+            return;
+          }
+
+          // 从记录中删除这个键
+          pressedKeys.delete(e.code);
+
+          // 发送键盘释放事件到服务器
+          ws.send(JSON.stringify({
+            type: 'keyboard',
+            action: 'up',
+            key: e.key,
+            code: e.code,
+            altKey: e.altKey,
+            ctrlKey: e.ctrlKey,
+            shiftKey: e.shiftKey,
+            metaKey: e.metaKey,
+            timestamp: Date.now()
+          }));
+        }, { passive: false });
+
+        // 禁用keypress事件 - 完全不使用它
+
+        // 鼠标离开窗口时清除所有按键状态
+        window.addEventListener('blur', () => {
+          pressedKeys.clear();
+        });
+
+        log('键盘控制已启用 (优化版)');
+      }
+
+      // 添加键盘状态显示
+      const keyboardStatusElement = document.createElement('div');
+      keyboardStatusElement.style.position = 'fixed';
+      keyboardStatusElement.style.bottom = '10px';
+      keyboardStatusElement.style.right = '10px';
+      keyboardStatusElement.style.backgroundColor = 'rgba(0,0,0,0.5)';
+      keyboardStatusElement.style.color = 'white';
+      keyboardStatusElement.style.padding = '5px 10px';
+      keyboardStatusElement.style.borderRadius = '5px';
+      keyboardStatusElement.style.fontFamily = 'monospace';
+      keyboardStatusElement.style.fontSize = '12px';
+      keyboardStatusElement.style.display = 'none';
+      document.body.appendChild(keyboardStatusElement);
+
+      // 显示键盘按键状态
+      document.addEventListener('keydown', (e) => {
+        if (document.activeElement.tagName !== 'INPUT') {
+          keyboardStatusElement.textContent = `按键: ${e.key} (${e.code})`;
+          keyboardStatusElement.style.display = 'block';
+
+          // 3秒后隐藏
+          setTimeout(() => {
+            keyboardStatusElement.style.display = 'none';
+          }, 3000);
+        }
+      });
+
+      // 自动启用键盘控制（无需点击按钮）
+      setupKeyboardControl();
+
+      // 添加导航栏功能
+      const backBtn = document.getElementById('backBtn');
+      const forwardBtn = document.getElementById('forwardBtn');
+      const refreshBtn = document.getElementById('refreshBtn');
+      const urlBar = document.getElementById('urlBar');
+      const goBtn = document.getElementById('goBtn');
+
+      // 当前URL
+      let currentUrl = '';
+
+      // 后退按钮点击
+      backBtn.addEventListener('click', () => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'navigation',
+            action: 'back'
+          }));
+        }
+      });
+
+      // 前进按钮点击
+      forwardBtn.addEventListener('click', () => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'navigation',
+            action: 'forward'
+          }));
+        }
+      });
+
+      // 刷新按钮点击
+      refreshBtn.addEventListener('click', () => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'navigation',
+            action: 'refresh'
+          }));
+        }
+      });
+
+      // URL输入框提交
+      urlBar.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          navigateToUrl();
+        }
+      });
+
+      // 前往按钮点击
+      goBtn.addEventListener('click', navigateToUrl);
+
+      // 导航到URL
+      function navigateToUrl() {
+        const url = urlBar.value.trim();
+        if (url && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'navigation',
+            action: 'goto',
+            url: url
+          }));
+        }
+      }
+
+      // 处理导航响应
+      function handleNavigationResponse(data) {
+        if (data.error) {
+          log(`导航错误: ${data.error}`);
+          return;
+        }
+
+        currentUrl = data.url;
+        urlBar.value = currentUrl;
+
+        // 更新按钮状态
+        backBtn.disabled = !data.canGoBack;
+        forwardBtn.disabled = !data.canGoForward;
+
+        log(`导航到: ${currentUrl}`);
+      }
+
+      // 处理来自服务器的消息 - 扩展版本
+      const originalOnMessage = ws.onmessage;
+      ws.onmessage = (event) => {
+        try {
+          // 如果是文本消息，检查是否是导航信息
+          if (!(event.data instanceof ArrayBuffer)) {
+            const message = JSON.parse(event.data);
+
+            if (message.type === 'navigation') {
+              handleNavigationResponse(message);
+              return;
+            }
+            else if (message.type === 'session') {
+              updateSessionInfo(message.clientId);
+              return;
+            }
+            else if (message.type === 'metadata') {
+              // 保存元数据用于接下来的图像数据
+              currentMetadata = {
+                width: message.width,
+                height: message.height,
+                timestamp: message.timestamp
+              };
+              return;
+            }
+            else if (message.type === 'ping') {
+              // 心跳响应
+              ws.send(JSON.stringify({ type: 'pong', time: Date.now() }));
+              return;
+            }
+          }
+
+          // 处理二进制数据 - 图像内容
+          if (event.data instanceof ArrayBuffer) {
+            receivedFrames++;
+            if (receivedFrames % 10 === 0) {
+              log(`已接收 ${receivedFrames} 帧数据，当前帧大小: ${event.data.byteLength} 字节`);
+            }
+
+            // 确保我们有元数据
+            if (!currentMetadata) {
+              log('收到图像数据但没有元数据，忽略...');
+              return;
+            }
+
+            // 使用元数据创建Blob
+            const blob = new Blob([event.data], { type: 'image/jpeg' });
+            const timestamp = currentMetadata.timestamp || Date.now();
+
+            // 检查是否应该处理这一帧
+            if (skipFrames && lastFrameTimestamp > 0 &&
+              timestamp - lastFrameTimestamp < 50) {
+              return; // 跳过这一帧
+            }
+
+            lastFrameTimestamp = timestamp;
+
+            // 更新画布尺寸（如果需要）
+            if (canvasElement.width !== currentMetadata.width ||
+              canvasElement.height !== currentMetadata.height) {
+              log(`调整画布尺寸: ${currentMetadata.width}x${currentMetadata.height}`);
+              canvasElement.width = currentMetadata.width;
+              canvasElement.height = currentMetadata.height;
+
+              // 画布大小变化后需要重新设置鼠标控制
+              if (mouseControlEnabled) {
+                setupMouseControl(true);
+              }
+            }
+
+            // 创建URL对象以加载图像
+            const url = URL.createObjectURL(blob);
+            const img = new Image();
+
+            img.onload = () => {
+              // 图像加载成功，将其添加到帧队列
+              frameQueue.push({ img, timestamp });
+
+              // 限制队列长度
+              if (frameQueue.length > 5) {
+                frameQueue.shift();
+              }
+
+              URL.revokeObjectURL(url);
+            };
+
+            img.onerror = (err) => {
+              log(`图像加载错误: ${err}`);
+              URL.revokeObjectURL(url);
+            };
+
+            img.src = url;
+          }
+        } catch (error) {
+          log(`处理消息时出错: ${error.message}`);
+          console.error('完整错误:', error);
+        }
+      };
+
+      // 添加会话ID显示
+      let sessionId = null;
+
+      function updateSessionInfo(id) {
+        sessionId = id;
+        // 将会话ID添加到状态显示
+        document.title = `远程浏览器 - 会话 ${id.substring(0, 8)}`;
+
+        // 添加ID显示到状态栏
+        const sessionInfo = document.createElement('div');
+        sessionInfo.textContent = `会话ID: ${id.substring(0, 8)}`;
+        sessionInfo.style.position = 'fixed';
+        sessionInfo.style.top = '10px';
+        sessionInfo.style.left = '10px';
+        sessionInfo.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        sessionInfo.style.color = 'white';
+        sessionInfo.style.padding = '5px 10px';
+        sessionInfo.style.borderRadius = '5px';
+        sessionInfo.style.fontFamily = 'monospace';
+        sessionInfo.style.fontSize = '12px';
+        sessionInfo.style.zIndex = '1000';
+        document.body.appendChild(sessionInfo);
+
+        log(`已分配会话ID: ${id}`);
+      }
+    });
+  </script>
+</body>
+
+</html>
