@@ -1,4 +1,8 @@
 ## Demo版本的Browserless
+> 在云函数部署你的无头浏览器，然后在另外的地方看到并操作它（脱了裤子放屁），但是能和 manus 扯上关系，可能后面会搞一个类 manus的项目（鸽子预警）
+
+![demo](https://raw.githubusercontent.com/LiuTianjie/browser-less-test/main/static/demo.gif)
+
 由于现在云函数不允许直接访问 html 了， 所以这里面的 index.html 还需要单独部署到另外一个地方，替换里面的 wss 地址为你部署的地址
 
 ## How to run
