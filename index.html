@@ -5,572 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Tele Browser</title>
-  <style>
-    :root {
-      --primary-color: #2563eb;
-      --primary-dark: #1d4ed8;
-      --primary-light: #3b82f6;
-      --secondary-color: #06b6d4;
-      --accent-color: #22d3ee;
-      --dark-bg: #0f172a;
-      --medium-bg: #1e293b;
-      --light-bg: #334155;
-      --text-color: #f8fafc;
-      --muted-text: #94a3b8;
-      --success-color: #10b981;
-      --error-color: #ef4444;
-      --warning-color: #f59e0b;
-      --border-radius: 12px;
-      --border-radius-sm: 8px;
-      --box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-      --box-shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.2);
-      --glow-effect: 0 0 15px rgba(34, 211, 238, 0.4);
-      --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      margin: 0;
-      padding: 0;
-      background-color: var(--dark-bg);
-      color: var(--text-color);
-      line-height: 1.6;
-      min-height: 100vh;
-      background-image:
-        radial-gradient(circle at 10% 20%, rgba(37, 99, 235, 0.1) 0%, transparent 30%),
-        radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 30%);
-      overscroll-behavior: none;
-    }
-
-    @supports (font-variation-settings: normal) {
-      body {
-        font-family: 'Inter var', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      }
-    }
-
-    .container {
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 20px;
-      position: relative;
-    }
-
-    header {
-      text-align: center;
-      margin-bottom: 24px;
-      position: relative;
-      padding: 0 20px;
-    }
-
-    h1 {
-      font-size: 2.5rem;
-      font-weight: 700;
-      margin: 0;
-      padding: 20px 0 10px;
-      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      letter-spacing: -0.5px;
-      position: relative;
-      display: inline-block;
-    }
-
-    h1::after {
-      content: "";
-      display: block;
-      width: 80px;
-      height: 4px;
-      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-      margin: 12px auto 0;
-      border-radius: 2px;
-    }
-
-    .status {
-      display: inline-flex;
-      align-items: center;
-      margin: 16px 0;
-      padding: 10px 20px;
-      border-radius: var(--border-radius);
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      transition: var(--transition);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-    }
-
-    .status::before {
-      content: "";
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      margin-right: 10px;
-    }
-
-    .connected {
-      background-color: rgba(6, 182, 212, 0.15);
-      color: var(--accent-color);
-      border: 1px solid rgba(6, 182, 212, 0.3);
-      box-shadow: var(--glow-effect);
-    }
-
-    .connected::before {
-      background-color: var(--accent-color);
-      box-shadow: 0 0 10px var(--accent-color);
-    }
-
-    .disconnected {
-      background-color: rgba(239, 68, 68, 0.15);
-      color: var(--error-color);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
-    }
-
-    .disconnected::before {
-      background-color: var(--error-color);
-      box-shadow: 0 0 10px var(--error-color);
-    }
-
-    /* 控制面板样式 */
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 12px;
-      margin: 20px 0;
-      padding: 20px;
-      background-color: rgba(30, 41, 59, 0.7);
-      border-radius: var(--border-radius);
-      box-shadow: var(--box-shadow-sm);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    button {
-      padding: 10px 18px;
-      background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-      color: white;
-      border: none;
-      border-radius: var(--border-radius-sm);
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 14px;
-      transition: var(--transition);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-    }
-
-    button:hover {
-      background: linear-gradient(135deg, var(--primary-light), var(--primary-color));
-      box-shadow: var(--glow-effect);
-      transform: translateY(-2px);
-    }
-
-    button:active {
-      transform: translateY(0);
-    }
-
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      background: var(--light-bg);
-      box-shadow: none;
-      transform: none !important;
-    }
-
-    select {
-      padding: 10px 14px;
-      background-color: var(--light-bg);
-      color: var(--text-color);
-      border: 1px solid var(--primary-color);
-      border-radius: var(--border-radius-sm);
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      outline: none;
-      transition: var(--transition);
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    }
-
-    select:hover {
-      border-color: var(--accent-color);
-      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2);
-    }
-
-    /* 浏览器容器样式 */
-    .browser-container {
-      width: 100%;
-      max-width: 100%;
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      border-radius: var(--border-radius);
-      overflow: hidden;
-      background-color: var(--medium-bg);
-      box-shadow: var(--box-shadow);
-      position: relative;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    /* 导航栏样式 */
-    .nav-bar {
-      display: flex;
-      width: 100%;
-      background: linear-gradient(90deg, #1a1a1a, #2c2c2c);
-      color: white;
-      border-radius: var(--border-radius) var(--border-radius) 0 0;
-      overflow: hidden;
-      border-bottom: 1px solid rgba(34, 211, 238, 0.2);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-    }
-
-    .nav-btn {
-      background-color: transparent;
-      color: white;
-      border: none;
-      padding: 14px 16px;
-      cursor: pointer;
-      transition: background-color 0.3s;
-      font-size: 15px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 44px;
-    }
-
-    .nav-btn:hover,
-    .nav-btn:focus {
-      background-color: rgba(34, 211, 238, 0.1);
-    }
-
-    .nav-btn:disabled {
-      color: var(--muted-text);
-      cursor: not-allowed;
-      background-color: transparent;
-    }
-
-    .url-bar {
-      flex-grow: 1;
-      padding: 12px 16px;
-      border: none;
-      outline: none;
-      background-color: rgba(15, 23, 42, 0.8);
-      color: white;
-      font-size: 14px;
-      border-radius: var(--border-radius-sm);
-      margin: 8px;
-      transition: var(--transition);
-      font-family: inherit;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .url-bar:focus {
-      border-color: var(--accent-color);
-      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2);
-    }
-
-    /* 远程显示画布样式 */
-    #remoteDisplay {
-      width: 100%;
-      height: auto;
-      border: none;
-      background-color: #000;
-      display: block;
-      aspect-ratio: 16/9;
-    }
-
-    /* 调试信息区域 */
-    #debugInfo {
-      margin-top: 24px;
-      font-family: 'Roboto Mono', 'Consolas', monospace;
-      background-color: rgba(30, 41, 59, 0.7);
-      color: var(--muted-text);
-      padding: 16px;
-      border-radius: var(--border-radius);
-      font-size: 13px;
-      height: 200px;
-      overflow-y: auto;
-      box-shadow: var(--box-shadow-sm);
-      border-left: 4px solid var(--primary-color);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    #debugInfo div {
-      margin-bottom: 6px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      word-break: break-word;
-    }
-
-    /* 状态指示器 */
-    .status-indicators {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      display: flex;
-      gap: 8px;
-      z-index: 100;
-    }
-
-    .indicator {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background-color: var(--accent-color);
-      box-shadow: 0 0 8px var(--accent-color);
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-      0% {
-        opacity: 0.5;
-        transform: scale(0.8);
-      }
-
-      50% {
-        opacity: 1;
-        transform: scale(1.1);
-      }
-
-      100% {
-        opacity: 0.5;
-        transform: scale(0.8);
-      }
-    }
-
-    /* 会话信息显示 */
-    .session-info {
-      position: fixed;
-      top: 20px;
-      left: 20px;
-      background: rgba(15, 23, 42, 0.8);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(34, 211, 238, 0.2);
-      color: var(--text-color);
-      padding: 10px 16px;
-      border-radius: var(--border-radius);
-      font-family: 'Roboto Mono', 'Consolas', monospace;
-      font-size: 13px;
-      z-index: 1000;
-      box-shadow: var(--box-shadow-sm);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .session-info::before {
-      content: "";
-      display: block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background-color: var(--accent-color);
-      box-shadow: 0 0 8px var(--accent-color);
-    }
-
-    /* 性能面板 */
-    .stats-panel {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: rgba(15, 23, 42, 0.8);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(34, 211, 238, 0.2);
-      color: var(--text-color);
-      padding: 16px;
-      border-radius: var(--border-radius);
-      font-family: 'Roboto Mono', 'Consolas', monospace;
-      font-size: 13px;
-      z-index: 1000;
-      box-shadow: var(--box-shadow-sm);
-      display: none;
-      flex-direction: column;
-      gap: 8px;
-      min-width: 200px;
-    }
-
-    .stats-panel div {
-      display: flex;
-      justify-content: space-between;
-    }
-
-    .stats-panel span:last-child {
-      font-weight: 600;
-      color: var(--accent-color);
-    }
-
-    /* 键盘状态显示 */
-    .keyboard-status {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: rgba(15, 23, 42, 0.8);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(34, 211, 238, 0.2);
-      color: var(--text-color);
-      padding: 10px 16px;
-      border-radius: var(--border-radius);
-      font-family: 'Roboto Mono', 'Consolas', monospace;
-      font-size: 13px;
-      z-index: 1000;
-      box-shadow: var(--box-shadow-sm);
-      display: none;
-    }
-
-    /* 加载动画 */
-    .loader {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 3px;
-      background-color: rgba(34, 211, 238, 0.2);
-      z-index: 9999;
-      overflow: hidden;
-    }
-
-    .loader::after {
-      content: "";
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 50%;
-      height: 100%;
-      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-      animation: loading 2s infinite ease-in-out;
-    }
-
-    @keyframes loading {
-      0% {
-        transform: translateX(-100%);
-      }
-
-      100% {
-        transform: translateX(200%);
-      }
-    }
-
-    /* 响应式调整 */
-    @media (max-width: 768px) {
-      .container {
-        padding: 12px;
-      }
-
-      h1 {
-        font-size: 1.8rem;
-        padding: 16px 0 8px;
-      }
-
-      h1::after {
-        width: 60px;
-        height: 3px;
-        margin: 8px auto 0;
-      }
-
-      .controls {
-        flex-direction: row;
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        padding: 16px 12px;
-        justify-content: flex-start;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-      }
-
-      .controls::-webkit-scrollbar {
-        display: none;
-      }
-
-      button,
-      select {
-        padding: 8px 12px;
-        font-size: 13px;
-        white-space: nowrap;
-      }
-
-      .nav-bar {
-        flex-wrap: wrap;
-      }
-
-      .nav-btn {
-        padding: 10px;
-        min-width: 40px;
-        font-size: 14px;
-      }
-
-      .url-bar {
-        order: -1;
-        flex: 1 0 100%;
-        margin: 8px;
-        font-size: 13px;
-      }
-
-      #debugInfo {
-        font-size: 12px;
-        height: 150px;
-        padding: 12px;
-      }
-
-      .session-info,
-      .stats-panel {
-        top: 10px;
-        left: 10px;
-        right: auto;
-        font-size: 12px;
-        padding: 8px 12px;
-      }
-
-      .stats-panel {
-        left: 10px;
-        right: 10px;
-        width: auto;
-      }
-    }
-
-    @media (max-width: 480px) {
-      h1 {
-        font-size: 1.5rem;
-      }
-
-      .status {
-        padding: 8px 16px;
-        font-size: 14px;
-      }
-
-      .controls {
-        gap: 8px;
-      }
-
-      .nav-btn {
-        padding: 8px;
-        min-width: 36px;
-      }
-    }
-
-    /* 防止移动端缩放 */
-    @media (pointer: coarse) {
-      body {
-        touch-action: manipulation;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="index.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono&display=swap"
     rel="stylesheet">
 </head>
@@ -580,14 +15,14 @@
   <div class="loader"></div>
 
   <div class="container">
-    <header>
-      <h1>Tele Browser</h1>
-      <div id="statusBox" class="status disconnected">等待连接...</div>
+    <header style="display: flex; flex-direction: row;justify-content: center; width: 100%;">
+      <h5 style="margin-left: auto;">Tele Browser</h5>
+      <div id="statusBox" class="status disconnected" style="margin-left: auto;">等待连接...</div>
     </header>
 
     <!-- 控制面板 -->
     <div class="controls">
-      <select id="qualitySelector">
+      <select id="qualitySelector" style="height: 32px;">
         <option value="high">高质量</option>
         <option value="medium" selected>中等质量</option>
         <option value="low">低质量 (高帧率)</option>
@@ -597,23 +32,24 @@
       <button id="statsPanelBtn">性能面板</button>
       <button id="mouseControlBtn">启用鼠标控制</button>
     </div>
+    <div style="display: flex; gap: 10px; height: calc(100vh - 180px);" class="main-content">
 
-    <!-- 浏览器容器 -->
-    <div class="browser-container">
-      <div class="nav-bar">
-        <button id="backBtn" class="nav-btn" title="后退" disabled>←</button>
-        <button id="forwardBtn" class="nav-btn" title="前进" disabled>→</button>
-        <button id="refreshBtn" class="nav-btn" title="刷新">↻</button>
-        <input type="text" id="urlBar" class="url-bar" placeholder="输入网址..." />
-        <button id="goBtn" class="nav-btn" title="前往">Go</button>
+      <!-- 浏览器容器 -->
+      <div class="browser-container">
+        <div class="nav-bar">
+          <button id="backBtn" class="nav-btn" title="后退" disabled>←</button>
+          <button id="forwardBtn" class="nav-btn" title="前进" disabled>→</button>
+          <button id="refreshBtn" class="nav-btn" title="刷新">↻</button>
+          <input type="text" id="urlBar" class="url-bar" placeholder="输入网址..." />
+          <button id="goBtn" class="nav-btn" title="前往">Go</button>
+        </div>
+        <canvas id="remoteDisplay"></canvas>
+        <div class="status-indicators">
+          <div class="indicator"></div>
+        </div>
       </div>
-      <canvas id="remoteDisplay"></canvas>
-      <div class="status-indicators">
-        <div class="indicator"></div>
-      </div>
+      <div id="debugInfo"></div>
     </div>
-
-    <div id="debugInfo"></div>
   </div>
 
   <!-- 性能面板 -->
@@ -677,11 +113,21 @@
       canvas.width = 1280;
       canvas.height = 720;
 
+      // 优化变量
+      let requestAnimationInProgress = false;
+      let lastFrameTime = 0;
+      const targetFPS = 60;
+      const frameInterval = 1000 / targetFPS;
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
       // 移动设备自动设置为低质量
-      if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+      if (isMobile) {
         qualitySelector.value = 'low';
         imageQuality = 'low';
         skipFrames = true;
+        // 禁用平滑渲染以提高性能
+        smooth = false;
+        ctx.imageSmoothingEnabled = false;
         log('检测到移动设备，已自动设置为低质量模式');
       }
 
@@ -702,39 +148,68 @@
         log(`已切换到${qualitySelector.options[qualitySelector.selectedIndex].text}`);
       });
 
-      // 绘制帧函数
+      // 优化帧率计算变量
+      let frameTimestamps = []; // 用于存储最近的帧渲染时间
+      const fpsWindowSize = 30; // 计算过去30帧的平均值
+      let lastFpsUpdateTime = 0;
+
+      // 使用优化的绘制帧函数
       function drawFrame() {
         try {
+          const now = performance.now();
+          // 记录这一帧的时间戳用于FPS计算
+          frameTimestamps.push(now);
+
+          // 只保留最近的N帧用于计算
+          if (frameTimestamps.length > fpsWindowSize) {
+            frameTimestamps.shift();
+          }
+
+          // 每100ms更新一次FPS显示
+          if (now - lastFpsUpdateTime > 100) {
+            calculateFPS();
+            lastFpsUpdateTime = now;
+          }
+
+          const elapsed = now - lastFrameTime;
+
+          // 限制帧率，减少不必要的渲染
+          if (elapsed < frameInterval && !skipFrames) {
+            animationFrameId = requestAnimationFrame(drawFrame);
+            return;
+          }
+
+          lastFrameTime = now;
+
           if (frameQueue.length > 0) {
+            // 低质量模式下只保留最新的一帧
             if (skipFrames && frameQueue.length > 1) {
               const latestFrame = frameQueue.pop();
               frameQueue = [latestFrame];
             }
 
             const frame = frameQueue.shift();
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 避免频繁清除画布
+            if (!skipFrames) {
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
 
             try {
-              ctx.drawImage(frame.img, 0, 0, canvas.width, canvas.height);
+              // 避免重绘整个画布
+              if (frame.img.complete) {
+                ctx.drawImage(frame.img, 0, 0, canvas.width, canvas.height);
 
-              // 计算FPS
-              const now = performance.now();
-              frameCount++;
-
-              if (now - lastUpdateTime >= 1000) {
-                fps = Math.round((frameCount * 1000) / (now - lastUpdateTime));
-                frameCount = 0;
-                lastUpdateTime = now;
-                updateStatus(`已连接 - ${fps} FPS`, true);
+                // 显示时间戳和FPS (可选，高CPU占用时可禁用)
+                if (!isMobile) {
+                  ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+                  ctx.fillRect(5, 5, 200, 20);
+                  ctx.fillStyle = "white";
+                  ctx.font = "12px 'Roboto Mono', monospace";
+                  const now2 = new Date();
+                  ctx.fillText(`${now2.toLocaleTimeString()} - FPS: ${fps} - 队列: ${frameQueue.length}`, 10, 18);
+                }
               }
-
-              // 显示时间戳和FPS
-              ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-              ctx.fillRect(5, 5, 200, 20);
-              ctx.fillStyle = "white";
-              ctx.font = "12px 'Roboto Mono', monospace";
-              const now2 = new Date();
-              ctx.fillText(`${now2.toLocaleTimeString()} - FPS: ${fps} - 队列: ${frameQueue.length}`, 10, 18);
             } catch (drawError) {
               log(`绘制图像出错: ${drawError.message}`);
             }
@@ -746,12 +221,33 @@
         animationFrameId = requestAnimationFrame(drawFrame);
       }
 
+      // 更精确的帧率计算
+      function calculateFPS() {
+        if (frameTimestamps.length < 2) return;
+
+        // 计算实际渲染的FPS (基于实际帧之间的时间差)
+        const timeElapsed = frameTimestamps[frameTimestamps.length - 1] - frameTimestamps[0];
+        const frameDuration = timeElapsed / (frameTimestamps.length - 1);
+        const calculatedFps = Math.round(1000 / frameDuration);
+
+        // 更新FPS值
+        fps = calculatedFps > 0 ? calculatedFps : 0;
+        fps = Math.min(fps, 60); // 合理范围控制
+
+        // 更新界面显示
+        updateStatus(`已连接 - ${fps} FPS`, true);
+
+        // 维护历史记录用于平均值计算
+        fpsHistory.push(fps);
+        if (fpsHistory.length > maxHistory) fpsHistory.shift();
+      }
+
       // 启动动画循环
       animationFrameId = requestAnimationFrame(drawFrame);
 
       // WebSocket连接
       function connectWebSocket() {
-        let wsUrl = "wss://1300423047-1r5ptj10hp.ap-guangzhou.tencentscf.com";
+        let wsUrl = "ws://localhost:9000";
 
         ws = new WebSocket(wsUrl);
         ws.binaryType = 'arraybuffer';
@@ -776,49 +272,69 @@
         return ws;
       }
 
-      // 处理WebSocket消息
+      // 处理WebSocket消息 - 优化版本
       function handleWebSocketMessage(event) {
         try {
           if (event.data instanceof ArrayBuffer) {
             // 处理二进制图像数据
             receivedFrames++;
 
+            // 记录接收到的帧 - 仅用于服务器帧率计算
+            const receiveTime = performance.now();
+
             if (!currentMetadata) {
-              log('收到图像数据但没有元数据，忽略...');
-              return;
+              return; // 没有元数据，跳过处理
             }
 
-            const blob = new Blob([event.data], { type: 'image/jpeg' });
             const timestamp = currentMetadata.timestamp || Date.now();
 
-            if (skipFrames && lastFrameTimestamp > 0 && timestamp - lastFrameTimestamp < 50) {
-              return;
+            // 跳帧逻辑优化
+            if (skipFrames && lastFrameTimestamp > 0) {
+              const timeDiff = timestamp - lastFrameTimestamp;
+              // 移动设备：丢弃帧间隔小于阈值的帧
+              if (isMobile && timeDiff < 80) {
+                return;
+              }
+              // 桌面设备：高负载时适度丢帧
+              else if (frameQueue.length > 3 && timeDiff < 30) {
+                return;
+              }
             }
 
             lastFrameTimestamp = timestamp;
 
-            // 调整画布尺寸
-            if (canvas.width !== currentMetadata.width || canvas.height !== currentMetadata.height) {
-              log(`调整画布尺寸: ${currentMetadata.width}x${currentMetadata.height}`);
-              canvas.width = currentMetadata.width;
-              canvas.height = currentMetadata.height;
-            }
-
+            // 高效创建Blob和加载图像
+            const blob = new Blob([event.data], { type: 'image/jpeg' });
             const url = URL.createObjectURL(blob);
             const img = new Image();
 
-            img.onload = () => {
-              frameQueue.push({ img, timestamp });
-              if (frameQueue.length > 5) frameQueue.shift();
-              URL.revokeObjectURL(url);
-            };
-
-            img.onerror = (err) => {
-              log(`图像加载错误: ${err}`);
-              URL.revokeObjectURL(url);
-            };
-
+            // 设置onload之前设置src可能更有效
             img.src = url;
+
+            img.onload = () => {
+              // 记录图像加载完成时间
+              const loadTime = performance.now();
+              const loadDelay = loadTime - receiveTime;
+
+              frameQueue.push({
+                img,
+                timestamp,
+                receiveTime,
+                loadTime,
+                loadDelay
+              });
+
+              // 限制队列长度，防止内存占用过高
+              const maxQueueSize = isMobile ? 2 : 4;
+              while (frameQueue.length > maxQueueSize) frameQueue.shift();
+
+              // 注意：在onload回调内释放URL
+              URL.revokeObjectURL(url);
+            };
+
+            img.onerror = () => {
+              URL.revokeObjectURL(url);
+            };
           } else {
             // 处理文本消息
             const message = JSON.parse(event.data);
@@ -890,31 +406,56 @@
         statsPanelBtn.textContent = statsPanel.style.display === 'none' ? '性能面板' : '隐藏面板';
       });
 
-      // 更新性能面板
+      // 更新性能面板 - 增加更多详细信息
       function updateStatsPanel() {
         if (statsPanel.style.display === 'none') return;
 
+        // 计算平均帧率，使用最近的历史数据
         const avgFps = fpsHistory.length > 0
           ? Math.round(fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length)
           : 0;
 
-        const frameDelay = frameQueue.length > 0
-          ? Math.round(performance.now() - frameQueue[0].timestamp)
-          : 0;
+        // 计算服务器到客户端的帧率 (每秒接收的帧数)
+        const serverFps = Math.min(60, receivedFrames > lastReceivedFrames ?
+          receivedFrames - lastReceivedFrames : 0);
+        lastReceivedFrames = receivedFrames;
 
+        // 计算平均加载延迟
+        let avgLoadDelay = 0;
+        if (frameQueue.length > 0) {
+          const delays = frameQueue.filter(f => f.loadDelay).map(f => f.loadDelay);
+          if (delays.length > 0) {
+            avgLoadDelay = Math.round(delays.reduce((a, b) => a + b, 0) / delays.length);
+          }
+        }
+
+        // 更新UI
         currentFpsEl.textContent = fps;
         avgFpsEl.textContent = avgFps;
         frameQueueEl.textContent = frameQueue.length;
-        frameDelayEl.textContent = `${frameDelay}ms`;
+
+        // 添加渲染延迟显示
+        const frameDelay = frameQueue.length > 0
+          ? Math.round(performance.now() - frameQueue[0].timestamp)
+          : 0;
+        frameDelayEl.textContent = `${frameDelay}ms (加载:${avgLoadDelay}ms)`;
+
+        // 显示接收帧数和服务器帧率
+        if (!serverFpsEl) {
+          // 如果元素不存在，创建它
+          serverFpsEl = document.createElement('span');
+          document.querySelector('.stats-panel div:nth-child(5)').appendChild(document.createTextNode(' (服务器: '));
+          document.querySelector('.stats-panel div:nth-child(5)').appendChild(serverFpsEl);
+          document.querySelector('.stats-panel div:nth-child(5)').appendChild(document.createTextNode(' FPS)'));
+        }
+        serverFpsEl.textContent = serverFps;
+
         receivedFramesEl.textContent = receivedFrames;
       }
 
-      // 定期更新性能数据
-      setInterval(() => {
-        fpsHistory.push(fps);
-        if (fpsHistory.length > maxHistory) fpsHistory.shift();
-        updateStatsPanel();
-      }, 1000);
+      // 添加新变量跟踪上次接收帧数
+      let lastReceivedFrames = 0;
+      let serverFpsEl = null;
 
       // 鼠标控制功能
       function setupMouseControl() {
@@ -938,8 +479,11 @@
         // 双击
         canvas.addEventListener('dblclick', handleDoubleClick);
 
-        // 滚轮
-        canvas.addEventListener('wheel', handleWheel, { passive: false });
+        // 滚轮事件
+        canvas.addEventListener('wheel', handleWheel, {
+          passive: false,
+          capture: true   // 添加捕获阶段处理
+        });
 
         // 防止滚动和选中
         canvas.style.touchAction = 'none';
@@ -1067,17 +611,24 @@
           const x = (e.clientX - rect.left) / rect.width;
           const y = (e.clientY - rect.top) / rect.height;
 
+          // 转换滚动增量为合适的范围
+          const deltaX = Math.sign(e.deltaX) * Math.min(Math.abs(e.deltaX), 100);
+          const deltaY = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 100);
+
           ws.send(JSON.stringify({
             type: 'mouse',
             action: 'wheel',
             x: x,
             y: y,
-            deltaX: e.deltaX,
-            deltaY: e.deltaY,
+            deltaX: deltaX,
+            deltaY: deltaY,
+            mode: e.deltaMode,  // 添加deltaMode
             timestamp: Date.now()
           }));
 
+          // 阻止默认滚动行为
           e.preventDefault();
+          e.stopPropagation();
         }
       }
 
@@ -1293,6 +844,8 @@
       ws = connectWebSocket();
     });
   </script>
+
+
 </body>
 
 </html>

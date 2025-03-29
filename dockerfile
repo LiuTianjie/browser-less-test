@@ -34,4 +34,4 @@ RUN groupadd -r playwright && useradd -r -g playwright -G audio,video playwright
 USER playwright
 
 # 启动命令
-CMD ["node", "server.js"]
+CMD ["node", "server/index.js"]

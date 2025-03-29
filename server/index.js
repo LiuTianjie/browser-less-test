@@ -63,8 +63,43 @@ async function handleMouseEvent(event, browserPage) {
         break;
 
       case 'wheel':
+        // 优化的滚动处理
         await browserPage.evaluate(({ x, y, deltaX, deltaY }) => {
-          window.scrollBy(deltaX, deltaY);
+          // 查找鼠标位置下最适合滚动的元素
+          const element = document.elementFromPoint(x, y);
+          if (!element) return;
+
+          // 查找可滚动的父元素
+          let target = element;
+          while (target && target !== document.documentElement) {
+            const style = window.getComputedStyle(target);
+            const overflow = style.getPropertyValue('overflow') +
+              style.getPropertyValue('overflow-y') +
+              style.getPropertyValue('overflow-x');
+
+            const isScrollable = /(auto|scroll|overlay)/.test(overflow) &&
+              (target.scrollHeight > target.clientHeight ||
+                target.scrollWidth > target.clientWidth);
+
+            if (isScrollable) {
+              // 找到可滚动元素，执行滚动
+              const scale = 0.5; // 降低滚动速度
+              target.scrollBy({
+                top: deltaY * scale,
+                left: deltaX * scale,
+                behavior: 'auto' // 使用即时滚动以避免延迟
+              });
+              return; // 找到并处理后退出
+            }
+            target = target.parentElement;
+          }
+
+          // 如果没有找到可滚动元素，则滚动整个页面
+          window.scrollBy({
+            top: deltaY * 0.5,
+            left: deltaX * 0.5,
+            behavior: 'auto'
+          });
         }, { x, y, deltaX: event.deltaX, deltaY: event.deltaY });
         break;
     }
@@ -462,16 +497,24 @@ app.ws('/', async (ws, req) => {
   }
 
   // 客户端断开连接
-  ws.on('close', () => {
+  ws.on('close', async () => {
     console.log(`客户端断开连接: ${clientId}`);
 
     // 从会话中移除此客户端
     if (session) {
       session.clients = session.clients.filter(client => client !== ws);
 
-      // 如果没有更多客户端连接到此会话，清理资源
+      // 如果没有更多客户端连接到此会话，立即清理资源
       if (session.clients.length === 0) {
-        cleanupSession(clientId);
+        // 先关闭标签页，再清理其他资源
+        try {
+          if (session.page && !session.page.isClosed()) {
+            await session.page.close();
+          }
+        } catch (error) {
+          console.error(`关闭客户端 ${clientId} 的标签页时出错:`, error);
+        }
+        await cleanupSession(clientId);
       }
     }
   });
@@ -507,6 +550,11 @@ app.ws('/', async (ws, req) => {
           const result = await handleNavigation(data.action, data.url, currentSession.page);
           ws.send(JSON.stringify(result));
         }
+        // 处理客户端配置更改
+        else if (data.type === 'config') {
+          // 更新会话的图像质量设置
+          updateSessionConfig(currentSession, data);
+        }
       }
     } catch (e) {
       console.error(`处理客户端 ${clientId} 消息错误:`, e);
@@ -520,18 +568,147 @@ app.ws('/', async (ws, req) => {
   }));
 });
 
+// 更新会话配置
+function updateSessionConfig(session, config) {
+  if (config.quality) {
+    // 根据客户端请求的质量调整截图参数
+    switch (config.quality) {
+      case 'low':
+        session.imageQuality = 50; // 较低的JPEG质量
+        session.captureInterval = 100; // 降低捕获频率
+        break;
+      case 'medium':
+        session.imageQuality = 70;
+        session.captureInterval = 33; // ~30fps
+        break;
+      case 'high':
+        session.imageQuality = 85;
+        session.captureInterval = 16; // ~60fps
+        break;
+      default:
+        session.imageQuality = 70;
+        session.captureInterval = 33;
+    }
+
+    console.log(`客户端 ${session.id} 配置已更新: 质量=${config.quality}, 间隔=${session.captureInterval}ms`);
+
+    // 重新设置捕获间隔
+    if (session.captureIntervalId) {
+      clearInterval(session.captureIntervalId);
+      startCaptureInterval(session);
+    }
+  }
+}
+
+// 开始定期截图 - 优化版本
+function startCaptureInterval(session) {
+  // 初始化默认值
+  if (!session.imageQuality) session.imageQuality = 70;
+  if (!session.captureInterval) session.captureInterval = 33;
+
+  // 初始化节流变量
+  let throttleTime = 0;
+  const THROTTLE_THRESHOLD = 200; // ms
+
+  session.captureIntervalId = setInterval(async () => {
+    // 跳过如果上一次截图还未完成或者没有客户端连接
+    if (session.pendingCapture || session.clients.length === 0) {
+      return;
+    }
+
+    // 当负载较高时进行节流
+    const now = Date.now();
+    if (now - session.lastCaptureTime < session.captureInterval / 2) {
+      throttleTime += session.captureInterval;
+      if (throttleTime < THROTTLE_THRESHOLD) return;
+      throttleTime = 0;
+    } else {
+      throttleTime = 0;
+    }
+
+    session.pendingCapture = true;
+    session.lastCaptureTime = now;
+
+    try {
+      if (!session.page.isClosed()) {
+        // 使用Playwright截取屏幕截图，优化质量参数
+        const screenshot = await session.page.screenshot({
+          type: 'jpeg',
+          fullPage: false, // 不使用全页面截图以提高性能
+          clip: {
+            x: 0,
+            y: 0,
+            width: session.screenshotWidth,
+            height: session.screenshotHeight
+          },
+          quality: session.imageQuality, // 使用动态质量
+          omitBackground: false
+        });
+
+        // 保存最新的截图
+        session.latestScreenshot = screenshot;
+
+        // 当前时间戳
+        const timestamp = Date.now();
+
+        // 发送给所有连接到此会话的客户端
+        for (let client of session.clients) {
+          if (client.readyState === WebSocket.OPEN) {
+            try {
+              // 首先发送元数据
+              client.send(JSON.stringify({
+                type: 'metadata',
+                width: session.screenshotWidth,
+                height: session.screenshotHeight,
+                timestamp: timestamp
+              }));
+
+              // 然后发送二进制数据
+              client.send(screenshot);
+            } catch (sendError) {
+              console.error(`向客户端 ${session.id} 发送截图时出错:`, sendError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`客户端 ${session.id} 截取屏幕截图错误:`, error);
+    } finally {
+      session.pendingCapture = false;
+    }
+  }, session.captureInterval);
+}
+
+// 清理会话资源 - 修改以清理captureIntervalId
+async function cleanupSession(sessionId) {
+  const session = sessions.get(sessionId);
+  if (!session) return;
+
+  console.log(`清理客户端 ${sessionId} 的会话资源`);
+
+  // 清理定时器
+  if (session.captureIntervalId) {
+    clearInterval(session.captureIntervalId);
+  }
+
+  // 关闭浏览器
+  try {
+    if (session.browser) {
+      await session.browser.close();
+    }
+  } catch (error) {
+    console.error(`关闭客户端 ${sessionId} 的浏览器出错:`, error);
+  }
+
+  // 从会话列表中移除
+  sessions.delete(sessionId);
+  console.log(`客户端 ${sessionId} 会话已清理`);
+}
+
 // 启动服务器
 const PORT = 9000;
 server.listen(PORT, async () => {
   console.log(`服务器运行在 http://localhost:${PORT}`);
-  console.log(`客户端页面访问地址: http://localhost:${PORT}/index.html`);
-
-  // 确保client.html文件存在
-  const clientPath = path.join(__dirname, 'index.html');
-  if (!fs.existsSync(clientPath)) {
-    console.error('错误: index.html 文件不存在!');
-    process.exit(1);
-  }
 
   // 处理服务器关闭
   process.on('SIGINT', async () => {
