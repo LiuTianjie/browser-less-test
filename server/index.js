@@ -6,7 +6,6 @@ const path = require('path');
 const fs = require('fs');
 const expressWs = require('express-ws');
 const { v4: uuidv4 } = require('uuid'); // 为每个客户端生成唯一ID
-const { channel } = require('diagnostics_channel');
 
 // 创建Express应用
 const app = express();
@@ -202,7 +201,6 @@ async function createBrowserSession(clientId) {
 
     // 启动浏览器
     const browser = await chromium.launch({
-      channel: 'chrome',
       headless: true,
       args: [
         '--autoplay-policy=no-user-gesture-required',
