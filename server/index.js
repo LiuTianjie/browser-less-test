@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const expressWs = require('express-ws');
 const { v4: uuidv4 } = require('uuid'); // 为每个客户端生成唯一ID
+const { channel } = require('diagnostics_channel');
 
 // 创建Express应用
 const app = express();
@@ -201,6 +202,7 @@ async function createBrowserSession(clientId) {
 
     // 启动浏览器
     const browser = await chromium.launch({
+      channel: 'chrome',
       headless: true,
       args: [
         '--autoplay-policy=no-user-gesture-required',
@@ -707,7 +709,7 @@ async function cleanupSession(sessionId) {
 
 // 启动服务器
 const PORT = 9000;
-server.listen(PORT, async () => {
+server.listen(PORT,'0.0.0.0', async () => {
   console.log(`服务器运行在 http://localhost:${PORT}`);
 
   // 处理服务器关闭
